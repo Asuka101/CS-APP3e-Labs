@@ -192,7 +192,7 @@ void eval(char *cmdline)
     int jid;
     sigset_t mask_all, mask, prev;
 
-    /* ignore NULL command*/
+    /* ignore NULL command */
     if (argv[0] == NULL)
         return;
     Sigfillset(&mask_all);
@@ -319,7 +319,7 @@ int builtin_cmd(char **argv)
         return 1;
     }
 
-    Sigprocmask(SIG_SETMASK, &prev, NULL);   /* unblock */
+    Sigprocmask(SIG_SETMASK, &prev, NULL);	/* unblock */
     return 0;                               /* not a builtin command */
 }
 
@@ -336,18 +336,18 @@ void do_bgfg(char **argv)
     Sigfillset(&mask);
     Sigprocmask(SIG_BLOCK, &mask, &prev);
 
-    /* call bg or fg without an argument*/
+    /* call bg or fg without an argument */
     if (argv[1] == NULL) {
             printf("%s command requires PID or %%jobid argument\n", argv[0]);
             Sigprocmask(SIG_SETMASK, &prev, NULL);
             return;
     }
 
-    /*extract PID or JID from the argument*/
+    /* extract PID or JID from the argument */
     is_jid = (*ptr == '%') ? 1 : 0;
     ptr = is_jid ? ptr + 1 : ptr;
 
-    /* handle some invalid inputs*/
+    /* handle some invalid inputs */
     if ((id = atoi(ptr)) == 0) {
         if (argv[1][0] == '0') {
             printf("(%d): No such process\n", id);
@@ -366,11 +366,11 @@ void do_bgfg(char **argv)
         }
     }
     
-    /* set jid and pid*/
+    /* set jid and pid */
     jid = is_jid ? id : 0;
     pid = is_jid ? 0 : (pid_t)id;
 
-    /* search for the job and modify the state*/
+    /* search for the job and modify the state */
     job = is_jid ? getjobjid(jobs, jid) : getjobpid(jobs, pid);
     if (!job) {
         if (is_jid) {
@@ -469,7 +469,7 @@ void sigchld_handler(int sig)
 
         /* stopped child */
         else if (WIFSTOPPED(status)) {
-            /* state should be modified here because SIGTSTP caught by other processes won't let the terminal call sigtstp_handler*/
+            /* state should be modified here because SIGTSTP caught by other processes won't let the terminal call sigtstp_handler */
             Sigfillset(&mask);
             Sigprocmask(SIG_BLOCK, &mask, &prev);
             getjobpid(jobs, pid)->state = ST;
@@ -500,15 +500,15 @@ void sigint_handler(int sig)
     Sigfillset(&mask);
     Sigprocmask(SIG_BLOCK, &mask, &prev);   /* block every signal */
 
-    int olderrno = errno;                   /* store the current value of errno*/
+    int olderrno = errno;                   /* store the current value of errno */
 
-    /* send SIGINT to the job*/
+    /* send SIGINT to the job */
 	pid_t pid = fgpid(jobs);
     if (pid != 0) {
         Kill(-pid, sig);
 	}
 	
-    errno = olderrno;                       /* restore errno*/
+    errno = olderrno;                       /* restore errno */
     
     Sigprocmask(SIG_SETMASK, &prev, NULL);  /* unblock */
 
@@ -528,7 +528,7 @@ void sigtstp_handler(int sig)
 
 	int olderrno = errno;                   
 
-    /* send SIGTSTP to the job*/
+    /* send SIGTSTP to the job */
 	pid_t pid = fgpid(jobs);
     if (pid != 0) {
         Kill(-pid, sig);
