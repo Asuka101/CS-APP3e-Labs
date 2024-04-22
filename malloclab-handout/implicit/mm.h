@@ -5,11 +5,8 @@ extern void *extend_heap(size_t words);
 extern void *mm_malloc (size_t size);
 extern void *find_fit(size_t asize);
 extern void place(void *bp, size_t asize);
-extern void delete_node(void *ptr);
 extern void mm_free (void *ptr);
 extern void *coalesce(void *ptr);
-extern void add_node(void *ptr);
-extern void *find_entry(size_t size);
 extern void *mm_realloc(void *ptr, size_t size);
 
 
