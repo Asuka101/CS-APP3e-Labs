@@ -168,24 +168,28 @@ void *find_fit(size_t asize)
     void *entry = find_entry(asize);
     void *boundary = GET_ENTRY(CLASSNUM);
     void *ptr;
+    void *best = NULL;
     
     while (entry < boundary) {
         ptr = (void *)(GET(entry));
         
         while (ptr != NULL) {
             /* case 1: current block size is larger than or equal to asize */
-            if (GET_SIZE(HDRP(ptr)) >= asize)
-                return ptr;
+            if (GET_SIZE(HDRP(ptr)) >= asize) {
+                best = ptr;
+                ptr = GET_LEFT(ptr);
+            }
             
             /* case 2: current block size is smaller than asize */
             else
                 ptr = GET_RIGHT(ptr);
         }
-
+        if (best != NULL) 
+            break;
         entry += WSIZE;
     }
     
-    return NULL;
+    return best;
 }
 
 /*
