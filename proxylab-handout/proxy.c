@@ -1,12 +1,23 @@
 #include <stdio.h>
 #include "csapp.h"
+#include "sbuf.h"
+#include "cache.h"
 
 /* Recommended max cache and object sizes */
 #define MAX_CACHE_SIZE 1049000
 #define MAX_OBJECT_SIZE 102400
 
+/* number of threads and buf size and number of cachelines */
+#define THREADNUM 4
+#define SBUFSIZE 16
+#define CACHELINE_NUM 6
+
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n";
+
+/* sbuf and cache memory */
+sbuf_t sbuf;
+Cache *cache;
 
 /* header structure */
 struct header {
@@ -16,12 +27,14 @@ struct header {
     char proxy_connection[MAXLINE];
 };
 
+/* uri sturucture */
 struct uri {
     char host[MAXLINE];
     char port[MAXLINE];
     char path[MAXLINE];
 };
 
+void *thread(void *vargp);
 void doit(int fd);
 void parse_uri(char *uri, struct uri *up);
 void generate_header(struct header *hp, struct uri *up, char *requesthdr);
@@ -29,10 +42,11 @@ void sigpipe_handler(int sig);
 
 int main(int argc, char **argv)
 {
-    int listenfd, connfd;
+    int i, listenfd, connfd;
     char hostname[MAXLINE], port[MAXLINE];
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
+    pthread_t tid;
     
     /* check if arguments are valid */
     if (argc != 2) {
@@ -45,28 +59,48 @@ int main(int argc, char **argv)
 
     /* listen */
     listenfd = Open_listenfd(argv[1]);
+    
+    sbuf_init(&sbuf, SBUFSIZE);
+    for (i = 0; i < THREADNUM; i++)
+        Pthread_create(&tid, NULL, thread, NULL);
+
+    /* initialize the cache and handle the SIGINT */
+    cache = malloc(sizeof(Cache));
+    cache_init(cache, CACHELINE_NUM);
 
     while (1) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-        Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
-        printf("Accept connection from (%s, %s)\n", hostname, port);
-        doit(connfd);
-        Close(connfd);
+        Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
+        printf("Accepted connection from (%s, %s)\n", hostname, port);
+        sbuf_insert(&sbuf, connfd);
     }
     return 0;
 }
 
+void *thread(void *vargp)
+{
+    Pthread_detach(pthread_self());
+    while (1) {
+        int connfd = sbuf_remove(&sbuf);
+        doit(connfd);
+        Close(connfd);
+    }
+}
+
 void doit(int fd)
 {
-    int serverfd;
+    int serverfd, object_size;
     rio_t rio, server_rio;
     char buf[MAXBUF], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char requesthdr[MAXLINE];
+    char *object_cache;
+    char uri_tmp[MAXLINE];
+    char object_buf[MAX_OBJECT_SIZE];
     struct header *hp;
     struct uri *up;
     size_t n;
-    
+
     /* initialize the rio buffer and read data line by line */
     Rio_readinitb(&rio, fd);
     if (!Rio_readlineb(&rio, buf, MAXLINE))
@@ -77,19 +111,24 @@ void doit(int fd)
     /* whether the method is GET or not */
     if (strcasecmp(method, "GET")) {
         sprintf(buf, "Proxy does not implement this method\r\n");
-        Rio_writen(fd, buf, sizeof(buf));
+        Rio_writen(fd, buf, strlen(buf));
         return;
     }
+
+    /* cache hit */
+    if ((object_cache = cache_fetch(cache, uri, fd)) != NULL)
+        return;
 
     /* transfer the request to the server */
     up = (struct uri *)malloc(sizeof(struct uri));
     hp = (struct header *)malloc(sizeof(struct header));
-    parse_uri(uri, up);
+    strcpy(uri_tmp, uri);
+    parse_uri(uri_tmp, up);
     generate_header(hp, up, requesthdr);
     serverfd = Open_clientfd(up->host, up->port);
     if (serverfd < 0) {
-        sprintf(buf, "Connection faild\n");
-        Rio_writen(fd, buf, sizeof(buf));
+        sprintf(buf, "Connection faild\r\n");
+        Rio_writen(fd, buf, strlen(buf));
         return;
     }
 
@@ -98,21 +137,28 @@ void doit(int fd)
 
     /* GET request */
     sprintf(buf, "%s %s %s\r\n", method, up->path, version);
-    Rio_writen(serverfd, buf, sizeof(buf));
+    Rio_writen(serverfd, buf, strlen(buf));
 
     /* request header */
-    Rio_writen(serverfd, requesthdr, sizeof(requesthdr));
+    Rio_writen(serverfd, requesthdr, strlen(requesthdr));
 
     free(up);
     free(hp);
 
     /* receive messages from the serve and transfer them to the client */
     Rio_readinitb(&server_rio, serverfd);
+    object_size = 0;
     while((n = Rio_readlineb(&server_rio, buf, MAXLINE)) > 0) {
+        object_size += (int)n;
         printf("Proxy received %d bytes from the server\n", (int)n);
+        if (n <= MAX_OBJECT_SIZE)
+            strcat(object_buf, buf);
         Rio_writen(fd, buf, n);
     }
-    
+
+    if (object_size <= MAX_OBJECT_SIZE)
+        object_insert(cache, uri, object_buf);
+
     Close(serverfd);
 }
 
