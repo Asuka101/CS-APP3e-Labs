@@ -1,3 +1,6 @@
+/*
+ * the same implementation of sbuf mentioned in the book CSAPP (Producer and Consumer Model)
+ */
 #include "sbuf.h"
 
 void sbuf_init(sbuf_t *sp, int n)

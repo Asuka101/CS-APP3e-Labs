@@ -1,3 +1,6 @@
+/*
+ * implementation of the proxy
+ */
 #include <stdio.h>
 #include "csapp.h"
 #include "sbuf.h"
@@ -64,7 +67,7 @@ int main(int argc, char **argv)
     for (i = 0; i < THREADNUM; i++)
         Pthread_create(&tid, NULL, thread, NULL);
 
-    /* initialize the cache and handle the SIGINT */
+    /* initialize the cache */
     cache = malloc(sizeof(Cache));
     cache_init(cache, CACHELINE_NUM);
 
@@ -88,6 +91,7 @@ void *thread(void *vargp)
     }
 }
 
+/* process the request message */
 void doit(int fd)
 {
     int serverfd, object_size;
@@ -141,6 +145,7 @@ void doit(int fd)
     /* request header */
     Rio_writen(serverfd, requesthdr, strlen(requesthdr));
 
+    /* free the heap memory to avoid memory leak */
     free(up);
     free(hp);
 
@@ -150,42 +155,52 @@ void doit(int fd)
     while((n = Rio_readlineb(&server_rio, buf, MAXLINE)) > 0) {
         object_size += (int)n;
         printf("Proxy received %d bytes from the server\n", (int)n);
+        /* fill in the buffer if the total size of file is valid in cache */
         if (n <= MAX_OBJECT_SIZE)
             strcat(object_buf, buf);
         Rio_writen(fd, buf, n);
     }
 
+    /* cache valid object */
     if (object_size <= MAX_OBJECT_SIZE)
         object_insert(cache, uri, object_buf);
 
     Close(serverfd);
 }
 
+/* extract useful information and details from the uri for further processing */
 void parse_uri(char *uri, struct uri *up) 
 {
     char *host, *port, *path;
     int portnum;
+
     host = strstr(uri, "//");
+    
+    /* uri without prefix "http://" */
     if (host == NULL) {
         port = strstr(uri, ":");
+        /* port is defined */
         if (port != NULL) {
-            sscanf(port + 1, "%d%s", &portnum, up->path);
-            sprintf(up->port, "%d", portnum);
+            sscanf(port + 1, "%d%s", &portnum, up->path);   // extract port and path in char
+            sprintf(up->port, "%d", portnum);               // convert the port from char form into number
             *port = '\0';
         }
+        /* port is not defined */
         else {
-            path = strstr(uri, "/");
+            path = strstr(uri, "/");    // locate the path
             if (path != NULL) {
                 strcpy(up->path, path);
                 *path = '\0';
             }
-            strcpy(up->port, "80");
+            strcpy(up->port, "80");     // use defalut port 80
         }
         strcpy(up->host, uri);
     }
 
+    /* uri with prefix "http://" */
     else {
-        port = strstr(host + 2, ":");
+        port = strstr(host + 2, ":");   // locate the true position of host
+        /* the same as mentioned above */
         if (port != NULL) {
             sscanf(port + 1, "%d%s", &portnum, up->path);
             sprintf(up->port, "%d", portnum);
@@ -204,6 +219,7 @@ void parse_uri(char *uri, struct uri *up)
     }
 }
 
+/* generate the header which is sent at first */
 void generate_header(struct header *hp, struct uri *up, char *requesthdr)
 {
     sprintf(hp->host, "Host: %s:%s\r\n", up->host, up->port);
@@ -213,8 +229,9 @@ void generate_header(struct header *hp, struct uri *up, char *requesthdr)
     sprintf(requesthdr, "\r\n%s%s%s%s\r\n", hp->host, hp->user_agent, hp->connection, hp->proxy_connection);
 }
 
+/* ignore SIGPIPE */
 void sigpipe_handler(int sig)
 {
-    Sio_puts("SIGPIPE caught\n");
+    Sio_puts("Broken pipe\n");
     return;
 }
