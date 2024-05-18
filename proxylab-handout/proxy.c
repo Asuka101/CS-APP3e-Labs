@@ -110,8 +110,7 @@ void doit(int fd)
     sscanf(buf, "%s %s %s", method, uri, version);
     /* whether the method is GET or not */
     if (strcasecmp(method, "GET")) {
-        sprintf(buf, "Proxy does not implement this method\r\n");
-        Rio_writen(fd, buf, strlen(buf));
+        printf("Proxy does not implement this method\r\n");
         return;
     }
 
