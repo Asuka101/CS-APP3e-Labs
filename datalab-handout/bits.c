@@ -230,7 +230,7 @@ int isLessOrEqual(int x, int y) {
   int negativex = ~x + 1;
   int z = !((y + negativex) >> 31);
   int judgesign = signx ^ signy;
-  return (z | judgesign) & (!signy | ~judgesign);
+  return (z | judgesign) & ((!signy) | ~judgesign);
 }
 //4
 /* 
@@ -340,7 +340,7 @@ int floatFloat2Int(unsigned uf) {
   uf = uf ^ sign;
   expBias = exp - 127;
   if (expBias < 0) return 0;
-  ans = (uf >> (fracbit - expBias)) & ((1 << 31) >> (32 - expBias)) + (1 << expBias);
+  ans = (uf >> (fracbit - expBias)) & (((1 << 31) >> (32 - expBias)) + (1 << expBias));
   return sign ? ~ans + 1 : ans;
 }
 /* 
