@@ -30,7 +30,7 @@ struct header {
     char proxy_connection[MAXLINE];
 };
 
-/* uri sturucture */
+/* uri structure */
 struct uri {
     char host[MAXLINE];
     char port[MAXLINE];

@@ -75,7 +75,7 @@ void object_insert(Cache *cache, char *uri, char *buf)
             break;
         }
         
-        /* keep iterating to find out the cacheline with the smallest counter */
+        /* keep iterating to find out the cacheline with the largest counter which is the least recently used one */
         if (cache->cacheline[i].counter > target->counter)
             target = &(cache->cacheline[i]);
     }
